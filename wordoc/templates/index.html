@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        .header {
+            text-align: center;
+            font-family: Georgia, serif;
+        }
+
+        .answer {
+            margin: 40px;
+            text-align: center;
+            display: none;
+            font-family: Georgia, serif;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            grid-column-gap: 8px;
+            grid-row-gap: 8px;
+            width: 320px;
+            margin:0px auto;
+            left:0;
+            right:0;
+        }
+
+        .grid-item {
+            border: 2px solid rgba(185, 185, 185, 0.8);
+            background-color: white;
+            color:black;
+            aspect-ratio: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 35px;
+            transition-duration: 0.8s;
+            transition-property: transform;
+            font-family: Georgia, serif;
+        }
+
+        .grid-item.rotate {
+            transform: rotate(360deg);
+            -webkit-transform: rotate(360deg);
+        }
+
+        .grid-item-filled {
+            border: 2px solid rgba(65, 65, 65, 0.8);
+            background-color: white;
+            color:black;
+        }
+
+        .grid-item-correct {
+            border: 2px solid rgba(0, 172, 114, 0.8);
+            background-color: rgba(0, 172, 114, 0.8);
+            color:white;
+        }
+
+        .grid-item-partial {
+            border: 2px solid rgba(236, 203, 54, 0.8);
+            background-color: rgba(236, 203, 54, 0.8);
+            color:white;
+        }
+
+        .keyboard {
+            margin-top: 20px;
+        }
+
+        .keyboard-row {
+            margin: 5px;
+            text-align: center;
+        }
+
+        .keyboard-key {
+            text-align: center;
+            width: 40px;
+            height: 45px;
+            font-size: 20px;
+            margin: 3px;
+        }
+
+        .keyboard-key-correct {
+            background-color: rgba(0, 172, 114, 0.8);
+            color:white;
+        }
+
+        .keyboard-key-wrong {
+            background-color: rgba(87, 87, 87, 0.8);
+            color:white;
+        }
+
+        .keyboard-key-partial {
+            border: 2px solid rgba(236, 203, 54, 0.8);
+            background-color: rgba(236, 203, 54, 0.8);
+            color:white;
+        }
+
+
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Wordoc</h1>
+    </div>
+
+    <p hidden id="word">{{word}}</p>
+
+    <div class="grid">
+        {% for i in '012345' %}
+            {% for j in '01234' %}
+                <div class="grid-item" id="{{i}}_{{j}}" tabindex="-1"></div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+
+    <div class="answer" id="answer">
+        The answer is {{word}}. <a href="/wordoc">New Game?</a>
+    </div>
+
+    <div class="keyboard" id="keyboard">
+        <div class="keyboard-row">
+            {% for c in 'QWERTYUIOP' %}
+                <button type="button" class="keyboard-key" id="key_{{c}}" onclick=keypressed("{{c}}")>{{c}}</button>
+            {% endfor %}
+        </div>
+
+        <div class="keyboard-row">
+            {% for c in 'ASDFGHJKL' %}
+                <button type="button" class="keyboard-key" id="key_{{c}}" onclick=keypressed("{{c}}")>{{c}}</button>
+            {% endfor %}
+        </div>
+
+        <div class="keyboard-row">
+            {% for c in '#ZXCVBNM<' %}
+                <button type="button" class="keyboard-key" id="key_{{c}}" onclick=keypressed("{{c}}")>{{c}}</button>
+            {% endfor %}
+        </div>
+    </div>
+
+</body>
+
+<script>
+    let row = 0;
+    let col = 0;
+
+    const max_row = 5;
+    const max_col = 4;
+
+    let word = document.getElementById('word').innerText;
+    let solved = false;
+
+    let grid = new Array(6).fill(0).map(() => new Array(5).fill(0));
+    for(let i = 0; i <= max_row; i++)
+    {
+        for(let j = 0; j <= max_col; j++)
+        {
+            grid[i][j] = document.getElementById(i + '_' + j);
+        }
+    }
+
+    function handle_letter(key)
+    {
+        if(col > max_col) return;
+        grid[row][col].innerHTML = key;
+        grid[row][col].classList.add('grid-item-filled');
+        col++;
+    }
+
+    function handle_backspace()
+    {
+        if(col == 0) return;
+        col--;
+        grid[row][col].innerHTML = '';
+        grid[row][col].classList.remove('grid-item-filled');
+    }
+
+    function get_word()
+    {
+        let guess = '';
+        for(let j = 0; j <= max_col; j++)
+        {
+            guess += grid[row][j].innerHTML;
+        }
+        return guess;
+    }
+
+    function check_dictionary(guess) {
+        const api_url = window.location.href + 'check?word=';
+        let url = api_url + guess.toLowerCase();
+        console.log(url);
+
+        fetch(url)
+        .then(res => res.json())
+        .then(out => {
+            if(out) {
+                console.log('found');
+                word_found(guess);
+            }
+            else {
+                alert('The word \"' + guess + '\" does not exist');
+            }
+        })
+        .catch(err => {
+            throw err;
+        });
+    }
+
+    function game_over() {
+        let answer = document.getElementById('answer');
+        answer.style.display = 'block';
+    }
+
+    function word_found(guess) {
+        mark(guess);
+        solved = (guess === word);
+        if(solved) {
+            confetti();
+            game_over();
+        }
+        else {
+            if(row == max_row) {
+                game_over();
+                return;
+            }
+            else {
+                row++;
+                col = 0;
+            }
+        }
+    }
+
+    function handle_enter()
+    {
+        if(col < max_col) return;
+        let guess = get_word();
+        if(guess.length < 5) return;
+
+        console.log(guess);
+
+        check_dictionary(guess);
+    }
+
+    function key_mark(keyboard_key, className)
+    {
+        if(keyboard_key.classList.contains('keyboard-key-correct')) return;
+
+        keyboard_key.setAttribute("class", "keyboard-key");
+        keyboard_key.classList.add(className);
+
+        // if(className === 'keyboard-key-correct') {
+        //     keyboard_key.classList.add('keyboard-key-correct');
+        // }
+        // else if(className === 'keyboard-key-partial')
+        // {
+        //     keyboard_key.classList.add('keyboard-key-partial');
+        // }
+        // else 
+        // {
+        //     keyboard_key.classList.add('keyboard-key-wrong');
+        // }
+    }
+
+    function mark(guess)
+    {
+        for(let j = 0; j <= max_col; j++)
+        {
+            let keyboard_key = document.getElementById("key_" + guess[j]);
+            if(guess[j] == word[j]) {
+                grid[row][j].classList.add('grid-item-correct');
+                key_mark(keyboard_key, 'keyboard-key-correct');
+            }
+            else if(word.indexOf(guess[j]) > -1) {
+                grid[row][j].classList.add('grid-item-partial');
+                key_mark(keyboard_key, 'keyboard-key-partial');
+            }
+            else {
+                key_mark(keyboard_key, 'keyboard-key-wrong');
+            }
+            grid[row][j].classList.add('rotate');
+        }
+    }
+
+    function keypressed(key) {
+        if(key == "#") {
+            handle_enter();
+        }
+        else if (key == "<") {
+            handle_backspace();
+        }
+        else {
+            handle_letter(key.toUpperCase());
+        }
+    }
+
+    document.onkeydown = function(e) {
+        if(solved) return;
+
+        let x = e.keyCode;
+        let key = e.key;
+
+        if (x >= 65 && x <= 90) {
+            handle_letter(key.toUpperCase());
+        } 
+        else if (x >= 97 && x <= 122) {
+            handle_letter(key)
+        }
+        else if (x == 8) {
+            handle_backspace();
+        }
+        else if (x == 13) {
+            handle_enter();
+        }
+        else {
+            return;
+        }
+    };
+
+
+    function confetti() {
+    // Globals
+    var random = Math.random
+        , cos = Math.cos
+        , sin = Math.sin
+        , PI = Math.PI
+        , PI2 = PI * 2
+        , timer = undefined
+        , frame = undefined
+        , confetti = [];
+
+    var particles = 10
+        , spread = 40
+        , sizeMin = 3
+        , sizeMax = 12 - sizeMin
+        , eccentricity = 10
+        , deviation = 100
+        , dxThetaMin = -.1
+        , dxThetaMax = -dxThetaMin - dxThetaMin
+        , dyMin = .13
+        , dyMax = .18
+        , dThetaMin = .4
+        , dThetaMax = .7 - dThetaMin;
+
+    var colorThemes = [
+        function() {
+        return color(200 * random()|0, 200 * random()|0, 200 * random()|0);
+        }, function() {
+        var black = 200 * random()|0; return color(200, black, black);
+        }, function() {
+        var black = 200 * random()|0; return color(black, 200, black);
+        }, function() {
+        var black = 200 * random()|0; return color(black, black, 200);
+        }, function() {
+        return color(200, 100, 200 * random()|0);
+        }, function() {
+        return color(200 * random()|0, 200, 200);
+        }, function() {
+        var black = 256 * random()|0; return color(black, black, black);
+        }, function() {
+        return colorThemes[random() < .5 ? 1 : 2]();
+        }, function() {
+        return colorThemes[random() < .5 ? 3 : 5]();
+        }, function() {
+        return colorThemes[random() < .5 ? 2 : 4]();
+        }
+    ];
+    function color(r, g, b) {
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
+
+    // Cosine interpolation
+    function interpolation(a, b, t) {
+        return (1-cos(PI*t))/2 * (b-a) + a;
+    }
+
+    // Create a 1D Maximal Poisson Disc over [0, 1]
+    var radius = 1/eccentricity, radius2 = radius+radius;
+    function createPoisson() {
+        // domain is the set of points which are still available to pick from
+        // D = union{ [d_i, d_i+1] | i is even }
+        var domain = [radius, 1-radius], measure = 1-radius2, spline = [0, 1];
+        while (measure) {
+        var dart = measure * random(), i, l, interval, a, b, c, d;
+
+        // Find where dart lies
+        for (i = 0, l = domain.length, measure = 0; i < l; i += 2) {
+            a = domain[i], b = domain[i+1], interval = b-a;
+            if (dart < measure+interval) {
+            spline.push(dart += a-measure);
+            break;
+            }
+            measure += interval;
+        }
+        c = dart-radius, d = dart+radius;
+
+        // Update the domain
+        for (i = domain.length-1; i > 0; i -= 2) {
+            l = i-1, a = domain[l], b = domain[i];
+            // c---d          c---d  Do nothing
+            //   c-----d  c-----d    Move interior
+            //   c--------------d    Delete interval
+            //         c--d          Split interval
+            //       a------b
+            if (a >= c && a < d)
+            if (b > d) domain[l] = d; // Move interior (Left case)
+            else domain.splice(l, 2); // Delete interval
+            else if (a < c && b > c)
+            if (b <= d) domain[i] = c; // Move interior (Right case)
+            else domain.splice(i, 0, c, d); // Split interval
+        }
+
+        // Re-measure the domain
+        for (i = 0, l = domain.length, measure = 0; i < l; i += 2)
+            measure += domain[i+1]-domain[i];
+        }
+
+        return spline.sort();
+    }
+
+    // Create the overarching container
+    var container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top      = '0';
+    container.style.left     = '0';
+    container.style.width    = '100%';
+    container.style.height   = '0';
+    container.style.overflow = 'visible';
+    container.style.zIndex   = '9999';
+
+    // Confetto constructor
+    function Confetto(theme) {
+        this.frame = 0;
+        this.outer = document.createElement('div');
+        this.inner = document.createElement('div');
+        this.outer.appendChild(this.inner);
+
+        var outerStyle = this.outer.style, innerStyle = this.inner.style;
+        outerStyle.position = 'absolute';
+        outerStyle.width  = (sizeMin + sizeMax * random()) + 'px';
+        outerStyle.height = (sizeMin + sizeMax * random()) + 'px';
+        innerStyle.width  = '100%';
+        innerStyle.height = '100%';
+        innerStyle.backgroundColor = theme();
+
+        outerStyle.perspective = '50px';
+        outerStyle.transform = 'rotate(' + (360 * random()) + 'deg)';
+        this.axis = 'rotate3D(' +
+        cos(360 * random()) + ',' +
+        cos(360 * random()) + ',0,';
+        this.theta = 360 * random();
+        this.dTheta = dThetaMin + dThetaMax * random();
+        innerStyle.transform = this.axis + this.theta + 'deg)';
+
+        this.x = window.innerWidth * random();
+        this.y = -deviation;
+        this.dx = sin(dxThetaMin + dxThetaMax * random());
+        this.dy = dyMin + dyMax * random();
+        outerStyle.left = this.x + 'px';
+        outerStyle.top  = this.y + 'px';
+
+        // Create the periodic spline
+        this.splineX = createPoisson();
+        this.splineY = [];
+        for (var i = 1, l = this.splineX.length-1; i < l; ++i)
+        this.splineY[i] = deviation * random();
+        this.splineY[0] = this.splineY[l] = deviation * random();
+
+        this.update = function(height, delta) {
+        this.frame += delta;
+        this.x += this.dx * delta;
+        this.y += this.dy * delta;
+        this.theta += this.dTheta * delta;
+
+        // Compute spline and convert to polar
+        var phi = this.frame % 7777 / 7777, i = 0, j = 1;
+        while (phi >= this.splineX[j]) i = j++;
+        var rho = interpolation(
+            this.splineY[i],
+            this.splineY[j],
+            (phi-this.splineX[i]) / (this.splineX[j]-this.splineX[i])
+        );
+        phi *= PI2;
+
+        outerStyle.left = this.x + rho * cos(phi) + 'px';
+        outerStyle.top  = this.y + rho * sin(phi) + 'px';
+        innerStyle.transform = this.axis + this.theta + 'deg)';
+        return this.y > height+deviation;
+        };
+    }
+
+    function poof() {
+        if (!frame) {
+        // Append the container
+        document.body.appendChild(container);
+
+        // Add confetti
+        var theme = colorThemes[0]
+            , count = 0;
+        (function addConfetto() {
+            var confetto = new Confetto(theme);
+            confetti.push(confetto);
+            container.appendChild(confetto.outer);
+            timer = setTimeout(addConfetto, spread * random());
+        })(0);
+
+        // Start the loop
+        var prev = undefined;
+        requestAnimationFrame(function loop(timestamp) {
+            var delta = prev ? timestamp - prev : 0;
+            prev = timestamp;
+            var height = window.innerHeight;
+
+            for (var i = confetti.length-1; i >= 0; --i) {
+            if (confetti[i].update(height, delta)) {
+                container.removeChild(confetti[i].outer);
+                confetti.splice(i, 1);
+            }
+            }
+
+            if (timer || confetti.length)
+            return frame = requestAnimationFrame(loop);
+
+            // Cleanup
+            document.body.removeChild(container);
+            frame = undefined;
+        });
+        }
+    }
+
+    poof();
+};
+
+</script>
+
+</html>
